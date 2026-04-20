@@ -1,0 +1,18 @@
+# Raw / compressed data files (large, not committed)
+/data/*.gz
+/data/neighbourhoods.csv
+/data/listings*.csv
+
+# Trained model artifacts (large binaries, not committed)
+/models/*.pkl
+/models/*.json
+/models/plots/
+.env
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/

@@ -1,0 +1,14 @@
+artifact_uri: /Users/zahra/ml_project/mlflow/855227014794509726/9694c77b6901490a876e96d2fad6e1d3/artifacts
+end_time: 1776716149271
+entry_point_name: ''
+experiment_id: '855227014794509726'
+lifecycle_stage: active
+run_id: 9694c77b6901490a876e96d2fad6e1d3
+run_name: XGBoost_tuned
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1776716149259
+status: 3
+tags: []
+user_id: zahra

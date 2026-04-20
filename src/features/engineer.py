@@ -30,12 +30,16 @@ FEATURED_PATH = DATA_DIR / "featured.csv"
 # Columns that carry no predictive signal for price and are dropped up front.
 # IDs, URLs, free-text blurbs, and scrape metadata are excluded.
 _DROP_COLS = [
-    "id", "listing_url", "scrape_id", "source",
+    "listing_url", "scrape_id", "source",
     "picture_url",
     "host_url", "host_thumbnail_url", "host_picture_url",
-    "name", "description", "neighborhood_overview", "host_about",
+    "name", "neighborhood_overview", "host_about",
     "last_scraped", "calendar_last_scraped",
     "license",
+    # Outcome variables — derived from price and actual bookings.
+    # A new host setting up their listing won't have this data.
+    "estimated_revenue_l365d",
+    "estimated_occupancy_l365d",
 ]
 
 # All Airbnb review sub-scores used to build review_score_avg.
@@ -61,11 +65,6 @@ _REVIEW_SCORE_COLS = [
 # --------------------------------------------------------------------------- #
 
 def _domain_features(df: pd.DataFrame) -> pd.DataFrame:
-    # price_per_person: value-for-money signal — guests implicitly compare
-    # nightly cost per person when choosing between listings; cheaper-per-person
-    # listings can justify a higher total price.
-    df["price_per_person"] = df["price"] / df["accommodates"].replace(0, np.nan)
-
     # amenities_count: proxy for listing quality and comfort level.
     # Hosts with more amenities can credibly charge higher prices.
     def _count_amenities(val: str) -> int:
@@ -129,14 +128,6 @@ def _statistical_features(df: pd.DataFrame) -> pd.DataFrame:
     present_review_cols = [c for c in _REVIEW_SCORE_COLS if c in df.columns]
     df["review_score_avg"] = df[present_review_cols].mean(axis=1)
 
-    # occupancy_rate: fraction of the year the listing is actually booked.
-    # High occupancy means real demand exists at the current price — a strong
-    # signal that the listing is correctly or under-priced.
-    if "estimated_occupancy_l365d" in df.columns:
-        df["occupancy_rate"] = df["estimated_occupancy_l365d"] / 365
-    else:
-        df["occupancy_rate"] = np.nan
-
     # availability_rate: complement of occupancy — what fraction of the year
     # the host keeps the listing open. A very low rate may indicate exclusivity
     # or a secondary property, both associated with higher prices.
@@ -162,13 +153,6 @@ def _interaction_features(df: pd.DataFrame) -> pd.DataFrame:
     # rated. A large listing with poor reviews or a tiny listing with great
     # reviews each price differently — the product captures the joint premium.
     df["size_quality_score"] = df["accommodates"] * df["review_scores_rating"]
-
-    # revenue_per_night: actual earning power normalised by availability.
-    # Adding 1 to availability_365 avoids division by zero for fully-booked
-    # listings. This is a model of realised yield, not just listed price.
-    df["revenue_per_night"] = (
-        df["estimated_revenue_l365d"] / (df["availability_365"] + 1)
-    )
 
     # host_quality_score: interaction between superhost status and average
     # review score. A superhost with mediocre reviews or a non-superhost with
@@ -238,6 +222,85 @@ def _location_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def create_nlp_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Extract binary keyword features from the listing description and amenities
+    columns, then drop both raw text columns.
+
+    Description features (15): scan lowercased description text for keywords
+    that signal premium or niche attributes guests pay extra for.
+
+    Amenities features (5): scan the amenities JSON/string for specific
+    high-value amenities that also appear in descriptions, providing a
+    structured cross-check signal.
+
+    Null descriptions are treated as empty strings (listing has no text).
+    Null amenities are treated as empty strings (no amenities listed).
+    """
+    df = df.copy()
+
+    # ------------------------------------------------------------------ #
+    # Description features                                                 #
+    # ------------------------------------------------------------------ #
+    desc = df["description"].fillna("").str.lower() if "description" in df.columns else pd.Series("", index=df.index)
+
+    nlp_desc = {
+        "has_view":              r"\bview\b|\bviews\b|\bscenic\b|\bpanoramic\b",
+        "has_waterfront":        r"\bwaterfront\b|\bwater front\b|\bwaterside\b|\blakefront\b|\bbeachfront\b",
+        "is_downtown":           r"\bdowntown\b|\bcity cent(?:er|re)\b|\burban core\b",
+        "has_hot_tub":           r"\bhot tub\b|\bhotttub\b|\bspa\b|\bjacuzzi\b",
+        "has_pool":              r"\bpool\b|\bswimming pool\b",
+        "has_parking":           r"\bparking\b|\bgarage\b|\bdriveway\b",
+        "has_gym":               r"\bgym\b|\bfitness\b|\bworkout\b|\bexercise room\b",
+        "has_ev_charger":        r"\bev charger\b|\belectric vehicle\b|\bev charging\b|\btesla charger\b",
+        "is_newly_renovated":    r"\bnew(?:ly)? renovated\b|\brecently renovated\b|\bremodeled\b|\bupdated\b|\bmodern(?:ized)?\b",
+        "is_luxury":             r"\bluxury\b|\bluxurious\b|\bupscale\b|\bhigh.end\b|\bpremium\b",
+        "is_cozy":               r"\bcozy\b|\bcosy\b|\bcharm(?:ing)?\b|\bintimate\b|\bquaint\b",
+        "has_fireplace":         r"\bfireplace\b|\bfire place\b|\bwood.burning\b",
+        "has_private_entrance":  r"\bprivate entrance\b|\bprivate entry\b|\bseparate entrance\b",
+        "has_backyard":          r"\bbackyard\b|\bback yard\b|\bprivate yard\b|\bpatio\b|\bdeck\b|\bterrace\b",
+        "is_entire_floor":       r"\bentire floor\b|\bwhole floor\b|\bfull floor\b|\btop floor\b|\bpenthouse\b",
+    }
+
+    for feat, pattern in nlp_desc.items():
+        df[feat] = desc.str.contains(pattern, regex=True, na=False).astype(int)
+
+    # ------------------------------------------------------------------ #
+    # Amenities features                                                   #
+    # ------------------------------------------------------------------ #
+    amen = df["amenities"].fillna("").str.lower() if "amenities" in df.columns else pd.Series("", index=df.index)
+
+    nlp_amen = {
+        "amenity_has_hot_tub":  r"\bhot tub\b|\bhotttub\b|\bjacuzzi\b",
+        "amenity_has_pool":     r"\bpool\b|\bswimming pool\b",
+        "amenity_has_parking":  r"\bparking\b|\bgarage\b",
+        "amenity_has_gym":      r"\bgym\b|\bfitness\b|\bworkout\b",
+        "amenity_has_ev_charger": r"\bev charger\b|\belectric vehicle\b|\bev charging\b",
+    }
+
+    for feat, pattern in nlp_amen.items():
+        df[feat] = amen.str.contains(pattern, regex=True, na=False).astype(int)
+
+    # ------------------------------------------------------------------ #
+    # Coverage report                                                      #
+    # ------------------------------------------------------------------ #
+    all_nlp_feats = list(nlp_desc) + list(nlp_amen)
+    n = len(df)
+    print(f"\n  NLP feature coverage ({n:,} listings):")
+    for feat in all_nlp_feats:
+        pct = df[feat].mean() * 100
+        print(f"    {feat:<28} {df[feat].sum():>5,}  ({pct:5.1f}%)")
+
+    # ------------------------------------------------------------------ #
+    # Drop raw text columns (now encoded)                                  #
+    # ------------------------------------------------------------------ #
+    for col in ["description"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+
+    return df
+
+
 # --------------------------------------------------------------------------- #
 # Public API                                                                   #
 # --------------------------------------------------------------------------- #
@@ -273,7 +336,11 @@ def select_features(
     (selected_feature_names, reduced_df)
     """
     numeric = df.select_dtypes(include="number")
-    candidates = [c for c in numeric.columns if c != target_col]
+    # Exclude target, 'id' (join key, not a feature), and _ALWAYS_KEEP from
+    # all filtering. 'id' is passed through untouched to the output DataFrame
+    # so downstream pipelines can use it as a join key.
+    _NON_FEATURE_COLS = {target_col, "id"}
+    candidates = [c for c in numeric.columns if c not in _NON_FEATURE_COLS]
 
     # Columns in _ALWAYS_KEEP are excluded from both filters but still
     # included in the returned DataFrame and selected feature list.
@@ -343,10 +410,11 @@ def select_features(
     else:
         print("    none")
 
-    # Always include target and all non-numeric columns in the output frame
+    # Always include target, 'id' (join key), and all non-numeric columns
     non_numeric = [c for c in df.columns if c not in numeric.columns]
-    final_cols = non_numeric + ([target_col] if target_col in df.columns else []) + selected
-    # Preserve original column order
+    id_col  = ["id"] if "id" in df.columns else []
+    final_cols = non_numeric + id_col + ([target_col] if target_col in df.columns else []) + selected
+    # Preserve original column order (dedup via set, respecting df order)
     final_cols = [c for c in df.columns if c in set(final_cols)]
 
     print(f"\n  Pinned (skip filters)     : {len(pinned)}")
@@ -356,6 +424,118 @@ def select_features(
     print(f"  Features after selection  : {len(selected)}")
 
     return selected, df[final_cols]
+
+
+def handle_nulls(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Resolve all remaining nulls after create_features() using domain-aware
+    strategies grouped by the *reason* values are missing.
+
+    Group 1 — Incomplete host profile (same 294 rows missing host_name,
+    host_since, host_listings_count, etc.). These listings lack a real host
+    identity and cannot be used for prediction — drop the rows entirely.
+
+    Group 2 — Host chose not to fill in optional profile fields. Treat
+    absence as a known category ("unknown") or impute with the median so
+    the model can still use the column.
+
+    Group 3 — No reviews yet. Missing review fields are not random; they
+    signal a brand-new or dormant listing. Encode that signal explicitly
+    (0 for counts/scores, 9999 for days-since as an "infinity" sentinel).
+    Drop the raw date columns already captured by days_since_last_review.
+
+    Group 4 — neighbourhood is 39% null and is superseded by the cleaner
+    neighbourhood_cleansed and neighbourhood_group columns — drop it.
+
+    Group 5 — Tiny null counts (<1%) on numeric/mixed columns.
+    Fill with median (numeric) or mode (categorical/text).
+    """
+    df = df.copy()
+
+    # ------------------------------------------------------------------ #
+    # Group 1: drop rows with incomplete host profile                     #
+    # ------------------------------------------------------------------ #
+    before = len(df)
+    df = df[df["host_name"].notna()].reset_index(drop=True)
+    print(f"  [G1] Dropped {before - len(df)} rows with null host_name "
+          f"(incomplete host profile)")
+
+    # ------------------------------------------------------------------ #
+    # Group 2: host chose not to set optional fields                      #
+    # ------------------------------------------------------------------ #
+    for col in ["host_response_time", "host_location", "host_neighbourhood"]:
+        if col in df.columns:
+            df[col] = df[col].fillna("unknown")
+
+    for col in ["host_response_rate_num", "host_acceptance_rate_num"]:
+        if col in df.columns:
+            df[col] = df[col].fillna(df[col].median())
+
+    # host_is_superhost: unknown hosts are assumed not superhosts
+    if "host_is_superhost" in df.columns:
+        df["host_is_superhost"] = df["host_is_superhost"].fillna("f")
+
+    # host_response_rate / host_acceptance_rate: raw string columns —
+    # host never set them, so mark as unknown rather than imputing a number
+    for col in ["host_response_rate", "host_acceptance_rate"]:
+        if col in df.columns:
+            df[col] = df[col].fillna("unknown")
+
+    print(f"  [G2] Filled host optional fields with median/unknown")
+
+    # ------------------------------------------------------------------ #
+    # Group 3: no reviews yet — encode absence as a deliberate signal     #
+    # ------------------------------------------------------------------ #
+    if "reviews_per_month" in df.columns:
+        df["reviews_per_month"] = df["reviews_per_month"].fillna(0)
+
+    if "host_quality_score" in df.columns:
+        df["host_quality_score"] = df["host_quality_score"].fillna(0)
+
+    if "days_since_last_review" in df.columns:
+        # 9999 acts as an "infinity" sentinel: the model learns that
+        # very large values here mean the listing has never been reviewed.
+        df["days_since_last_review"] = df["days_since_last_review"].fillna(9999)
+
+    for col in ["first_review", "last_review"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+
+    print(f"  [G3] Filled review nulls with 0/9999; dropped first_review, last_review")
+
+    # ------------------------------------------------------------------ #
+    # Group 4: neighbourhood superseded by cleaner columns                #
+    # ------------------------------------------------------------------ #
+    if "neighbourhood" in df.columns:
+        df = df.drop(columns=["neighbourhood"])
+    print(f"  [G4] Dropped neighbourhood column (39% null, "
+          f"superseded by neighbourhood_cleansed + neighbourhood_group)")
+
+    # ------------------------------------------------------------------ #
+    # Group 5: tiny null counts — fill with median or mode               #
+    # ------------------------------------------------------------------ #
+    numeric_median_cols = [
+        "beds", "minimum_minimum_nights", "maximum_minimum_nights",
+        "minimum_maximum_nights", "maximum_maximum_nights",
+    ]
+    for col in numeric_median_cols:
+        if col in df.columns:
+            df[col] = df[col].fillna(df[col].median())
+
+    # bathrooms_text is a string like "1 bath" — use mode
+    if "bathrooms_text" in df.columns:
+        mode_val = df["bathrooms_text"].mode().iloc[0]
+        df["bathrooms_text"] = df["bathrooms_text"].fillna(mode_val)
+
+    # has_availability is 't'/'f' — use mode
+    if "has_availability" in df.columns:
+        mode_val = df["has_availability"].mode().iloc[0]
+        df["has_availability"] = df["has_availability"].fillna(mode_val)
+
+    print(f"  [G5] Filled small numeric nulls with median; "
+          f"bathrooms_text/has_availability with mode")
+
+    return df
 
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -419,6 +599,28 @@ if __name__ == "__main__":
     print(f"\nColumns dropped ({len(dropped_cols)}):")
     for col in dropped_cols:
         print(f"  - {col}")
+
+    # ------------------------------------------------------------------ #
+    # Null handling                                                        #
+    # ------------------------------------------------------------------ #
+    nulls_before = featured.isnull().sum()
+    total_before = int(nulls_before[nulls_before > 0].sum())
+    print(f"\nNull handling ({total_before:,} null cells across "
+          f"{(nulls_before > 0).sum()} columns before) ...")
+
+    featured = handle_nulls(featured)
+
+    nulls_after = featured.isnull().sum()
+    total_after = int(nulls_after[nulls_after > 0].sum())
+    remaining = nulls_after[nulls_after > 0]
+    if remaining.empty:
+        print(f"  All nulls resolved. ({total_before:,} → 0)")
+    else:
+        print(f"  Nulls remaining ({total_after:,} cells across "
+              f"{len(remaining)} columns):")
+        for col, cnt in remaining.items():
+            pct = cnt / len(featured) * 100
+            print(f"    ! {col:<40} {cnt:>5,}  ({pct:.1f}%)")
 
     # ------------------------------------------------------------------ #
     # Feature selection                                                    #

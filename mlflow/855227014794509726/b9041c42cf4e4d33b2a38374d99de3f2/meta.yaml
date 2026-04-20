@@ -1,0 +1,14 @@
+artifact_uri: /Users/zahra/ml_project/mlflow/855227014794509726/b9041c42cf4e4d33b2a38374d99de3f2/artifacts
+end_time: 1776716134101
+entry_point_name: ''
+experiment_id: '855227014794509726'
+lifecycle_stage: active
+run_id: b9041c42cf4e4d33b2a38374d99de3f2
+run_name: LinearRegression
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1776716134094
+status: 3
+tags: []
+user_id: zahra
