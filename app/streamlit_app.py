@@ -193,7 +193,7 @@ def _kpi(value: str, label: str) -> None:
 def _footer() -> None:
     st.markdown(
         '<div class="footer">'
-        'Data: Inside Airbnb Seattle (Sep 2025) &nbsp;|&nbsp; '
+        'Data: Inside Airbnb Seattle (Scraped Sep 2025 · Reviews spanning 2009–2025) &nbsp;|&nbsp; '
         'Model: XGBoost &nbsp;|&nbsp; MAE $30.66'
         '</div>',
         unsafe_allow_html=True,
@@ -417,7 +417,7 @@ def _sidebar() -> str:
         st.markdown("---")
         st.markdown(
             '<div style="color:#718096;font-size:0.72rem;padding-top:4px;">'
-            'Seattle · Inside Airbnb · Sep 2025<br>'
+            'Seattle · Inside Airbnb · Scraped Sep 2025 · Reviews spanning 2009–2025<br>'
             'Model: XGBoost · MAE $30.66</div>',
             unsafe_allow_html=True,
         )
@@ -504,7 +504,7 @@ def _page_overview() -> None:
 def _page_eda() -> None:
     _hero(
         'Explore the <span class="accent">Data</span>',
-        "5,927 Seattle listings · Inside Airbnb · Sep 2025",
+        "5,927 Seattle listings · Inside Airbnb · Scraped Sep 2025 · Reviews spanning 2009–2025",
     )
     df = load_features()
 
@@ -734,7 +734,7 @@ def _page_eda() -> None:
     )
 
     st.info(
-        "Sentiment scores are derived from 575,824 reviews spanning 2009-2025 "
+        "Sentiment scores are derived from 575,824 reviews spanning 2009–2025 "
         "using VADER — a sentiment analyzer designed for informal text. "
         "Scores range from -1 (negative) to +1 (positive)."
     )
@@ -1563,7 +1563,7 @@ digraph arch {
     )
     _callout(
         "<b>Seasonal price adjustments are not modeled.</b> "
-        "Training data is a single September 2025 snapshot. "
+        "Training data is a single Sep 2025 snapshot (reviews spanning 2009–2025). "
         "Hosts who dynamically price across seasons will see systematic under/over-predictions "
         "at the extremes of the calendar.",
         "amber",
