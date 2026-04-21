@@ -21,12 +21,14 @@ jobs:
       - name: Install local package
         run: pip install -e .
 
+      - name: Install test dependencies
+        run: pip install pytest pytest-cov
+
       - name: Run tests
         run: pytest tests/ -v
 
   lint:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -39,3 +41,4 @@ jobs:
 
       - name: Lint
         run: ruff check src/ app/
+        continue-on-error: true
