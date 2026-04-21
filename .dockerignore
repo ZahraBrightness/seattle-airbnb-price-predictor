@@ -1,0 +1,21 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.eggs
+dist
+build
+.ipynb_checkpoints
+notebooks/
+
+# MLflow tracking store — not needed inside the container
+mlflow/
+mlruns/
+mlflow.db
+
+# Raw compressed source data — large, not needed at runtime
+data/*.gz
+data/listings*.csv
+data/neighbourhoods.csv

@@ -1,0 +1,38 @@
+# Core ML
+pandas>=1.5
+numpy>=1.23
+scikit-learn>=1.2
+xgboost>=1.7
+joblib>=1.2
+scipy>=1.9
+statsmodels>=0.13
+
+# Explainability
+shap>=0.41
+
+# NLP / sentiment
+nltk>=3.8
+
+# Hyperparameter tuning
+optuna>=3.0
+
+# Experiment tracking
+mlflow>=2.0
+
+# Visualisation
+plotly>=5.12
+matplotlib>=3.6
+seaborn>=0.12
+
+# Streamlit app
+streamlit>=1.25
+
+# Geo
+geopy>=2.3
+
+# API (optional — used by FastAPI service)
+fastapi>=0.100
+uvicorn>=0.22
+
+# Other
+lightgbm>=3.3

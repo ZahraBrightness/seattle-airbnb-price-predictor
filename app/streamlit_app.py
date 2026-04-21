@@ -590,10 +590,12 @@ def _page_eda() -> None:
             paper_bgcolor="rgba(0,0,0,0)",
             margin={"t": 0, "b": 0, "l": 0, "r": 0},
             coloraxis_colorbar=dict(
-                title="Median Nightly<br>Price ($)",
+                title=dict(
+                    text="Median Nightly<br>Price ($)",
+                    font=dict(color="#ffffff", size=12),
+                ),
                 tickprefix="$",
                 tickfont=dict(color="#ffffff", size=11),
-                titlefont=dict(color="#ffffff", size=12),
                 bgcolor="rgba(0,0,0,0.4)",
                 outlinecolor="rgba(0,0,0,0)",
                 len=0.75,

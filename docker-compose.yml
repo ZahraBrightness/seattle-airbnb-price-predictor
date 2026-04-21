@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  streamlit:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      # Bind-mount data/ and models/ so the container always uses
+      # the latest files on disk without a rebuild
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
