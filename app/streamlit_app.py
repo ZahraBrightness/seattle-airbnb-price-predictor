@@ -725,6 +725,144 @@ def _page_eda() -> None:
     _plotly_defaults(fig_heat, height=600)
     st.plotly_chart(fig_heat, use_container_width=True)
 
+    # ── Sentiment analysis ────────────────────────────────────────────────
+    st.markdown(
+        "<h2 style='color:#FFFFFF; font-size:1.6rem; font-weight:600; "
+        "margin-bottom:0.2rem;'>Sentiment Analysis</h2>"
+        f"<hr style='border:1px solid {RED}; margin-top:0;'>",
+        unsafe_allow_html=True,
+    )
+
+    st.info(
+        "Sentiment scores are derived from 575,824 reviews spanning 2009-2025 "
+        "using VADER — a sentiment analyzer designed for informal text. "
+        "Scores range from -1 (negative) to +1 (positive)."
+    )
+
+    sent_mean   = float(df["avg_sentiment"].mean())
+    pct_pos     = float((df["avg_sentiment"] > 0.05).mean() * 100)
+    pct_neg_rev = float(df["pct_negative_reviews"].mean() * 100)
+
+    s1, s2, s3 = st.columns(3)
+    s1.metric("Average Sentiment Score", f"{sent_mean:.2f}")
+    s2.metric("Positive Listings", f"{pct_pos:.1f}%")
+    s3.metric("Listings with Negative Reviews", f"{pct_neg_rev:.1f}%")
+
+    # Histogram + scatter side by side
+    hist_col, scatter_col = st.columns(2)
+
+    with hist_col:
+        fig_hist = go.Figure()
+        fig_hist.add_trace(go.Histogram(
+            x=df["avg_sentiment"],
+            nbinsx=40,
+            marker_color=RED,
+            opacity=0.85,
+            name="Listings",
+        ))
+        fig_hist.add_vline(
+            x=0,
+            line_dash="dash", line_color="#aaaaaa", line_width=1.5,
+            annotation_text="Neutral",
+            annotation_font_color="#aaaaaa",
+            annotation_position="top left",
+        )
+        fig_hist.add_vline(
+            x=sent_mean,
+            line_dash="dash", line_color=TEAL, line_width=1.5,
+            annotation_text="Mean",
+            annotation_font_color=TEAL,
+            annotation_position="top right",
+        )
+        fig_hist.update_layout(
+            title="Distribution of Listing Sentiment Scores",
+            title_font_color="#ffffff",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#ffffff",
+            xaxis=dict(
+                title="avg_sentiment",
+                gridcolor="#333333",
+                color="#ffffff",
+                linecolor="#444444",
+            ),
+            yaxis=dict(
+                title="Count",
+                gridcolor="#333333",
+                color="#ffffff",
+                linecolor="#444444",
+            ),
+            showlegend=False,
+            margin={"t": 48, "b": 32, "l": 8, "r": 8},
+            height=380,
+        )
+        st.plotly_chart(fig_hist, use_container_width=True)
+
+    with scatter_col:
+        ng_col = (
+            "neighbourhood_group"
+            if "neighbourhood_group" in df.columns
+            else "neighbourhood_cleansed"
+        )
+        fig_scat = px.scatter(
+            df.sample(min(2000, len(df)), random_state=42),
+            x="avg_sentiment",
+            y="price",
+            color=ng_col,
+            opacity=0.5,
+            title="Sentiment vs Nightly Price",
+            labels={
+                "avg_sentiment": "Average Sentiment Score",
+                "price": "Nightly Price ($)",
+                ng_col: "Neighbourhood Group",
+            },
+        )
+        fig_scat.update_layout(
+            title_font_color="#ffffff",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#ffffff",
+            xaxis=dict(gridcolor="#333333", color="#ffffff", linecolor="#444444"),
+            yaxis=dict(gridcolor="#333333", color="#ffffff", linecolor="#444444"),
+            legend=dict(font=dict(color="#ffffff"), bgcolor="rgba(0,0,0,0)"),
+            margin={"t": 48, "b": 32, "l": 8, "r": 8},
+            height=380,
+        )
+        st.plotly_chart(fig_scat, use_container_width=True)
+
+    # Sentiment by neighbourhood group bar chart
+    ng_sent = (
+        df.groupby(ng_col)["avg_sentiment"]
+        .mean()
+        .sort_values(ascending=True)
+        .reset_index()
+        .rename(columns={ng_col: "neighbourhood_group", "avg_sentiment": "mean_sentiment"})
+    )
+    fig_ng_sent = px.bar(
+        ng_sent,
+        x="mean_sentiment",
+        y="neighbourhood_group",
+        orientation="h",
+        title="Average Sentiment by Neighbourhood Group",
+        labels={
+            "mean_sentiment": "Mean Sentiment Score",
+            "neighbourhood_group": "",
+        },
+        color_discrete_sequence=[TEAL],
+    )
+    fig_ng_sent.update_layout(
+        title_font_color="#ffffff",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font_color="#ffffff",
+        xaxis=dict(gridcolor="#333333", color="#ffffff", linecolor="#444444"),
+        yaxis=dict(gridcolor="#333333", color="#ffffff", linecolor="#444444"),
+        margin={"t": 48, "b": 32, "l": 8, "r": 8},
+        height=380,
+        showlegend=False,
+    )
+    st.plotly_chart(fig_ng_sent, use_container_width=True)
+
     # ── Key findings ──────────────────────────────────────────────────────
     _section("Key EDA Findings")
     st.error(
