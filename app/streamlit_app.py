@@ -1586,10 +1586,9 @@ digraph arch {
     _section("Source Code")
     _callout(
         "<b>GitHub:</b> "
-        '<a href="https://github.com/your-username/seattle-airbnb-predictor" target="_blank">'
-        "github.com/your-username/seattle-airbnb-predictor"
-        "</a>"
-        " &nbsp;—&nbsp; replace with your actual repository URL before sharing.",
+        '<a href="https://github.com/ZahraBrightness/seattle-airbnb-price-predictor" target="_blank">'
+        "github.com/ZahraBrightness/seattle-airbnb-price-predictor"
+        "</a>",
         "blue",
     )
 
