@@ -13,12 +13,6 @@ shap>=0.41
 # NLP / sentiment
 nltk>=3.8
 
-# Hyperparameter tuning
-optuna>=3.0
-
-# Experiment tracking
-mlflow>=2.0
-
 # Visualisation
 plotly>=5.12
 matplotlib>=3.6
@@ -29,13 +23,6 @@ streamlit>=1.25
 
 # Geo
 geopy>=2.3
-
-# API (optional — used by FastAPI service)
-fastapi>=0.100
-uvicorn>=0.22
-
-# Other
-lightgbm>=3.3
 
 # Testing
 pytest>=7.0
